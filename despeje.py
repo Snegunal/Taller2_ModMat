@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 
 k1 = 45
 k2 = 237
+rho1 = 2700
+rho2 = 7870
 # Definimos las variables simbólicas
 
 rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma = sy.symbols('rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma')
@@ -46,8 +48,9 @@ for temp in temps:
     print()
 
 # Parámetros físicos y espaciales
+# Estos parametros cambian en función de donde se este iterando
 param_values = {
-    sy.symbols('rho'): 1000,
+    sy.symbols('rho'): rho1,
     sy.symbols('Cp'): 4200,
     sy.symbols('delta'): 0.01,
     sy.symbols('k'): k1,
@@ -89,8 +92,10 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
         param_values[Tn_ij] = Tvec_n[p]
 
         if i < Nx_in/2:
+            param_values[rho] = rho2
             param_values[k] = k2
         if i >= Nx_in/2:
+            param_values[rho] = rho1
             param_values[k] = k1
         
         # Evaluar y asignar coeficientes
@@ -98,12 +103,27 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
 
         # Dirección x: izquierda y derecha
         if i > 0:
-            x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
+            if i >= Nx_in/2 and i-1 < Nx_in/2: # Si se esta en la frontera de materiales xneg se evalua en el otro material
+                param_values[rho] = rho2
+                param_values[k] = k2
+                x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
+                param_values[rho] = rho1
+                param_values[k] = k1
+            else:
+                x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
         else:
             x_neg_diag[p] = 0  # frontera izquierda
 
         if i < Nx_in - 1:
-            x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+            if i < Nx_in/2 and i+1 >= Nx_in/2: # Si se esta en la frontera de materiales xpos se evalua en el otro material
+                param_values[rho] = rho1
+                param_values[k] = k1
+                x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+                param_values[rho] = rho2
+                param_values[k] = k2
+            else:
+                x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+            
         else:
             x_pos_diag[p] = 0  # frontera derecha
 
