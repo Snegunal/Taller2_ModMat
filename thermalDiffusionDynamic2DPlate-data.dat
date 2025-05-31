@@ -1,0 +1,11 @@
+Variable,       Value,  Description 
+nNodesX,        160,    Number of discrete nodes in X
+nNodesY,        120,    Number of discrete nodes in Y
+lenXPlaca,      0.7,    Total plate length in X
+lenYPlaca,      0.5,    Total plate length in Y
+highTemp,       700,    Hot boundary temperature
+lowTemp,        300,    Cold boundaries temperature
+simulationTime, 0.1,    Total simulation time
+deltaT,         1.0e-4, Time step to be used 
+nPlots,         200.0,  Total number of plts to be generated
+
