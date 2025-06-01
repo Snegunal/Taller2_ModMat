@@ -7,9 +7,10 @@ k1 = 45
 k2 = 237
 rho1 = 2700
 rho2 = 7870
+flux = 2
 # Definimos las variables simbólicas
 
-rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma = sy.symbols('rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma')
+rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma,q = sy.symbols('rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma,q')
 # Temperaturas futuras (n+1) y presentes (n)
 temps = sy.symbols('Tn1_ij Tn1_i_1j Tn1_i1j Tn1_ij_1 Tn1_ij1 Tn_ij Tn_i_1j Tn_i1j Tn_ij_1 Tn_ij1')
 
@@ -35,17 +36,12 @@ b_expr = rho*Cp*delta*Tn_ij/dt \
 f = sy.expand(f)
 f_collected = sy.collect(f, temps)
 
-# Mostramos la expresión agrupada
-print("\nExpresión agrupada:")
-sy.pprint(f_collected)
-
-# Mostramos coeficientes de cada temperatura
-print("\nCoeficientes:")
-for temp in temps:
-    coef = f_collected.coeff(temp)
-    print(f"Coeficiente de {temp}:")
-    sy.pprint(coef)
-    print()
+# Coeficientes de cada temperatura
+#print("\nCoeficientes:")
+#for temp in temps:
+#    coef = f_collected.coeff(temp)
+#    print(f"Coeficiente de {temp}:")
+#    sy.pprint(coef)
 
 # Parámetros físicos y espaciales
 # Estos parametros cambian en función de donde se este iterando
@@ -61,7 +57,8 @@ param_values = {
     sy.symbols('Ta'): 300,
     sy.symbols('epsilon'): 0.9,
     sy.symbols('sigma'): 5.67e-8,
-    sy.symbols('Tn_ij'): 400  # solo necesario para calcular b
+    sy.symbols('Tn_ij'): 400,  # solo necesario para calcular b
+    sy.symbols('q'): 2
 }
 
 Nx, Ny = 6,6
@@ -77,12 +74,22 @@ coef_expressions = {
     'y_pos': f_collected.coeff(Tn1_ij1)
 }
 
+#----------------------------- Matriz A -------------------------------
+
 main_diag     = np.zeros(N_in, dtype=np.float64)
 x_neg_diag    = np.zeros(N_in, dtype=np.float64)
 x_pos_diag    = np.zeros(N_in, dtype=np.float64)
 y_neg_diag    = np.zeros(N_in, dtype=np.float64)
 y_pos_diag    = np.zeros(N_in, dtype=np.float64)
 
+def neumann(f, nodo_fantasma, nodo_interno, q, delta, k): # Esta esta pendiente por ahora
+    sustitucion = nodo_interno + q * delta / k
+    fmod = f.subs(nodo_fantasma, sustitucion)
+    fmod = sy.expand(fmod)
+    fcol = sy.collect(fmod,nodo_interno)
+    coef = fcol.coeff(nodo_interno)
+    indep, _ = fmod.as_independent(*temps)
+    return coef,indep
 
 Tvec_n = 300*np.ones(N_in)
 
@@ -91,6 +98,7 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
         p = i + j * (Nx-2)  # índice global
         param_values[Tn_ij] = Tvec_n[p]
 
+        # Propiedades de aluminio y acero
         if i < Nx_in/2:
             param_values[rho] = rho2
             param_values[k] = k2
@@ -98,7 +106,7 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
             param_values[rho] = rho1
             param_values[k] = k1
         
-        # Evaluar y asignar coeficientes
+        # Evaluar y asignar coeficientes en la diagonal
         main_diag[p]  = float(coef_expressions['center'].evalf(subs=param_values))
 
         # Dirección x: izquierda y derecha
@@ -111,8 +119,8 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
                 param_values[k] = k1
             else:
                 x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
-        else:
-            x_neg_diag[p] = 0  # frontera izquierda
+        else: # frontera izquierda
+            x_neg_diag[p] = 0
 
         if i < Nx_in - 1:
             if i < Nx_in/2 and i+1 >= Nx_in/2: # Si se esta en la frontera de materiales xpos se evalua en el otro material
@@ -123,7 +131,6 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
                 param_values[k] = k2
             else:
                 x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
-            
         else:
             x_pos_diag[p] = 0  # frontera derecha
 
@@ -136,9 +143,30 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
             y_pos_diag[p] = float(coef_expressions['y_pos'].evalf(subs=param_values))
         else:
             y_pos_diag[p] = 0  # frontera superior
-        
-print((main_diag))
-print((x_neg_diag[1:]))
+
+        ## Condiciones de frontera
+        if i == 0:
+            coef_interno,_ = neumann(f, Tn1_i_1j, Tn1_i1j, 0, dx, k) # Frontera Izquierda
+            x_pos_diag[p] = coef_interno.evalf(subs = param_values)
+
+        if j == 0:
+            coef_interno,_ = neumann(f, Tn1_ij_1, Tn1_ij1, 0, dy, k) # Frontera Inferior
+            y_pos_diag[p] = coef_interno.evalf(subs = param_values)
+
+        if i == Nx-3:
+            coef_interno,_ = neumann(f, Tn1_i1j, Tn1_i_1j, flux, dy, k) # Frontera Derecha
+            x_neg_diag[p] = coef_interno.evalf(subs = param_values)
+
+        if j == Ny-3 and i >= Nx_in/2:
+            coef_interno,_ = neumann(f, Tn1_ij1, Tn1_ij_1, 0, dy, k) # Frontera superior derecha
+            y_neg_diag[p] = coef_interno.evalf(subs = param_values)
+
+        #---- Espacio para condicion de dirichlet que cambia solo el vector de la derecha.
+
+        #---------------------------------------------------------------------------------
+
+#print((main_diag))
+#print((x_neg_diag[1:]))
 # Desplazamientos de diagonales:
 # main: 0, x_neg: -1, x_pos: +1, y_neg: -Nx_in, y_pos: +Nx_in
 
@@ -171,12 +199,6 @@ def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condicio
                     return Tvec_n[idx(ii, jj)]
                 elif 0 <= ii < Nx_in/2 and jj == Ny_in:        
                     return 350 # Dirichlet 350 K
-                
-            
-            def aplicar_condicion_neumann(f, nodo_fantasma, nodo_interno, q, dx, k): # Esta esta pendiente por ahora
-                sustitucion = nodo_interno + q * dx / k
-                return f.subs(nodo_fantasma, sustitucion)
-
 
             vals = {
                 Tn_ij:    T_at(i, j),
