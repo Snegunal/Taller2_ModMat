@@ -136,6 +136,7 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
                 x_neg_diag[p] = coef_funcs['x_neg'](*vals)
                 param_values[rho] = rho1
                 param_values[k] = k1
+                vals = [param_values[sym] for sym in vars_needed]
             else:
                 x_neg_diag[p] = coef_funcs['x_neg'](*vals)
                 #x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
@@ -151,6 +152,7 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
                 x_pos_diag[p] = coef_funcs['x_pos'](*vals)
                 param_values[rho] = rho2
                 param_values[k] = k2
+                vals = [param_values[sym] for sym in vars_needed]
             else:
                 x_pos_diag[p] = coef_funcs['x_pos'](*vals)
                 #x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
