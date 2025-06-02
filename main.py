@@ -68,7 +68,7 @@ param_values = {
     sy.symbols('q'): 2
 }
 
-Nx, Ny = 7,7
+Nx, Ny = 6,6
 N_in = (Nx - 2) * (Ny - 2)
 Nx_in = Nx - 2
 Ny_in = Ny - 2
@@ -184,7 +184,7 @@ diagonals = [main_diag, x_neg_diag[1:], x_pos_diag, y_neg_diag[(Nx_in):], y_pos_
 # Creamos la matriz dispersa
 A = sp.sparse.diags(diagonals, offsets, shape=(N_in, N_in), format='csr')
 A_dense = A.toarray()
-np.set_printoptions(precision=2, linewidth=200, suppress=True)
+np.set_printoptions(precision=2, linewidth=150, suppress=True)
 print(A_dense)
 
 def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condiciones de neumann
