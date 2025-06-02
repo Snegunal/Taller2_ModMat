@@ -3,7 +3,6 @@ import scipy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from sympy.utilities.lambdify import lambdify
 
 
 
@@ -15,6 +14,9 @@ k2 = 237
 rho1 = 1#2700
 rho2 = 2#7870
 flux = 2
+Cp1= 1#
+Cp2=2#
+
 # Definimos las variables simbólicas
 
 rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma,q = sy.symbols('rho,Cp,delta,k,dt,dx,dy,h,Ta,epsilon,sigma,q')
@@ -57,7 +59,7 @@ param_values = {
     sy.symbols('Cp'): 420,
     sy.symbols('delta'): 0.01,
     sy.symbols('k'): k1,
-    sy.symbols('dt'): 1,
+    sy.symbols('dt'): 0.00001,
     sy.symbols('dx'): 0.01,
     sy.symbols('dy'): 0.01,
     sy.symbols('h'): 10,
@@ -68,7 +70,7 @@ param_values = {
     sy.symbols('q'): 2
 }
 
-Nx, Ny = 6,6
+Nx, Ny = 50,50
 N_in = (Nx - 2) * (Ny - 2)
 Nx_in = Nx - 2
 Ny_in = Ny - 2
@@ -203,43 +205,98 @@ diagonals = [main_diag, x_neg_diag[1:], x_pos_diag, y_neg_diag[(Nx_in):], y_pos_
 
 # Creamos la matriz dispersa
 A = sp.sparse.diags(diagonals, offsets, shape=(N_in, N_in), format='csr')
-A_dense = A.toarray()
-np.set_printoptions(precision=2, linewidth=150, suppress=True)
-print(A_dense)
+#A_dense = A.toarray()
+#np.set_printoptions(precision=2, linewidth=150, suppress=True)
+#print(A_dense)
 
-def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condiciones de neumann
+
+# ------------------------- Vector b -----------------------------------
+
+# Orden importante: variables primero, luego parámetros
+b_vars = [Tn_ij, Tn_i_1j, Tn_i1j, Tn_ij_1, Tn_ij1,
+          rho, Cp, delta, k, dt, dx, dy, h, Ta, epsilon, sigma]
+
+b_func = sy.lambdify(b_vars, b_expr, modules='numpy')
+
+
+def construir_vector_b(Tvec_n, Nx, Ny, param_values):
     Nx_in, Ny_in = Nx - 2, Ny - 2
     N_in = Nx_in * Ny_in
     b_vector = np.zeros(N_in)
+
+    const_params = [param_values[s] for s in [rho, Cp, delta, k, dt, dx, dy, h, Ta, epsilon, sigma]]
 
     for j in range(Ny_in):
         for i in range(Nx_in):
             p = i + j * Nx_in  # índice global
 
-            # Índices vecinos
             def idx(ii, jj):
                 return ii + jj * Nx_in
 
-            # Extraer vecinos y dirichlet
             def T_at(ii, jj):
                 if 0 <= ii < Nx_in and 0 <= jj < Ny_in:
                     return Tvec_n[idx(ii, jj)]
-                elif 0 <= ii < Nx_in/2 and jj == Ny_in:        
-                    return 350 # Dirichlet 350 K
+                elif 0 <= ii < Nx_in/2 and jj == Ny_in:
+                    return 350  # Dirichlet superior izquierdo
+                else:
+                    return Tvec_n[p]  # fallback
 
-            vals = {
-                Tn_ij:    T_at(i, j),
-                Tn_i_1j:  T_at(i-1, j),
-                Tn_i1j:   T_at(i+1, j),
-                Tn_ij_1:  T_at(i, j-1),
-                Tn_ij1:   T_at(i, j+1),
-            }
+            Tij     = T_at(i, j)
+            Ti_1j   = T_at(i-1, j)
+            Ti1j    = T_at(i+1, j)
+            Tij_1   = T_at(i, j-1)
+            Tij1    = T_at(i, j+1)
 
-            vals.update(param_values)  # parametros
+            # Ajustar propiedades según la posición (aluminio/acero)
+            if i < Nx_in / 2:
+                const_params_local = [rho2, param_values[Cp], param_values[delta], k2] + const_params[4:]  # cambiar rho, k
+            else:
+                const_params_local = [rho1, param_values[Cp], param_values[delta], k1] + const_params[4:]
 
-            b_vector[p] = float(b_expr.evalf(subs=vals))
+            input_vals = [Tij, Ti_1j, Ti1j, Tij_1, Tij1] + const_params_local
+
+            b_vector[p] = b_func(*input_vals)
+
+            if i == Nx_in - 1:
+                param_values[Tn_ij] = Tvec_n[p]
+                if i < Nx_in / 2:
+                    param_values[rho] = rho2
+                    param_values[k] = k2
+                else:
+                    param_values[rho] = rho1
+                    param_values[k] = k1
+                indep = neumann(f, Tn1_i1j, Tn1_i_1j, flux, dx, k)[1]
+                indep_func = sy.lambdify(vars_needed, indep, modules='numpy')
+            
+                b_vector[p] += indep_func(*[param_values[s] for s in vars_needed])
 
     return b_vector
+
+# Parámetros del tiempo
+n_steps = 1
+T_history = []
+
+T_current = Tvec_n.copy()
+
+for n in range(n_steps):
+    b = construir_vector_b(T_current, Nx, Ny, param_values)
+    T_next = sp.sparse.linalg.spsolve(A, b)
+    
+    T_history.append(T_next.copy())
+    T_current = T_next
+
+# Convertir T_history a array para análisis posterior
+T_history = np.array(T_history)
+
+# Última temperatura
+T_final = T_current.reshape((Ny - 2, Nx - 2))
+
+plt.imshow(T_final, origin='lower', cmap='hot', extent=[0, Nx-2, 0, Ny-2])
+plt.colorbar(label='Temperatura (K)')
+plt.title('Distribución de temperatura al paso final')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.show()
 
 end_time = time.time()
 elapsed_time = end_time - start_time
