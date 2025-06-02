@@ -2,11 +2,18 @@ import sympy as sy
 import scipy as sp
 import numpy as np
 import matplotlib.pyplot as plt
+import time
+from sympy.utilities.lambdify import lambdify
+
+
+
+
+start_time = time.time()
 
 k1 = 45
 k2 = 237
-rho1 = 2700
-rho2 = 7870
+rho1 = 1#2700
+rho2 = 2#7870
 flux = 2
 # Definimos las variables simbólicas
 
@@ -47,7 +54,7 @@ f_collected = sy.collect(f, temps)
 # Estos parametros cambian en función de donde se este iterando
 param_values = {
     sy.symbols('rho'): rho1,
-    sy.symbols('Cp'): 4200,
+    sy.symbols('Cp'): 420,
     sy.symbols('delta'): 0.01,
     sy.symbols('k'): k1,
     sy.symbols('dt'): 1,
@@ -61,7 +68,7 @@ param_values = {
     sy.symbols('q'): 2
 }
 
-Nx, Ny = 6,6
+Nx, Ny = 7,7
 N_in = (Nx - 2) * (Ny - 2)
 Nx_in = Nx - 2
 Ny_in = Ny - 2
@@ -85,7 +92,7 @@ y_pos_diag    = np.zeros(N_in, dtype=np.float64)
 def neumann(f, nodo_fantasma, nodo_interno, q, delta, k): # Esta esta pendiente por ahora
     sustitucion = nodo_interno + q * delta / k
     fmod = f.subs(nodo_fantasma, sustitucion)
-    fmod = sy.expand(fmod)
+    fcol = sy.expand(fmod)
     fcol = sy.collect(fmod,nodo_interno)
     coef = fcol.coeff(nodo_interno)
     indep, _ = fmod.as_independent(*temps)
@@ -177,7 +184,7 @@ diagonals = [main_diag, x_neg_diag[1:], x_pos_diag, y_neg_diag[(Nx_in):], y_pos_
 # Creamos la matriz dispersa
 A = sp.sparse.diags(diagonals, offsets, shape=(N_in, N_in), format='csr')
 A_dense = A.toarray()
-np.set_printoptions(precision=2, linewidth=150, suppress=True)
+np.set_printoptions(precision=2, linewidth=200, suppress=True)
 print(A_dense)
 
 def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condiciones de neumann
@@ -214,3 +221,6 @@ def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condicio
 
     return b_vector
 
+end_time = time.time()
+elapsed_time = end_time - start_time
+print(f"Tiempo transcurrido (time.time()): {elapsed_time} segundos")
