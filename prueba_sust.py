@@ -27,6 +27,7 @@ Cp1 = 4
 Cp2 = 5
 
 
+
 end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Tiempo transcurrido (time.time()): {elapsed_time} segundos")

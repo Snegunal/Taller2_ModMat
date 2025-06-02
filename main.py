@@ -68,7 +68,7 @@ param_values = {
     sy.symbols('q'): 2
 }
 
-Nx, Ny = 7,7
+Nx, Ny = 6,6
 N_in = (Nx - 2) * (Ny - 2)
 Nx_in = Nx - 2
 Ny_in = Ny - 2
@@ -80,6 +80,14 @@ coef_expressions = {
     'y_neg': f_collected.coeff(Tn1_ij_1),
     'y_pos': f_collected.coeff(Tn1_ij1)
 }
+
+vars_needed = [rho, Cp, delta, k, dt, dx, dy, h, Ta, epsilon, sigma, Tn_ij]
+
+coef_funcs = {
+    key: sy.lambdify(vars_needed, expr, modules='numpy')
+    for key, expr in coef_expressions.items()
+}
+
 
 #----------------------------- Matriz A -------------------------------
 
@@ -114,18 +122,23 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
             param_values[k] = k1
         
         # Evaluar y asignar coeficientes en la diagonal
-        main_diag[p]  = float(coef_expressions['center'].evalf(subs=param_values))
+        vals = [param_values[sym] for sym in vars_needed]
+        #main_diag[p]  = float(coef_expressions['center'].evalf(subs=param_values))
+        main_diag[p] = coef_funcs['center'](*vals)
 
         # Dirección x: izquierda y derecha
         if i > 0:
             if i >= Nx_in/2 and i-1 < Nx_in/2: # Si se esta en la frontera de materiales xneg se evalua en el otro material
                 param_values[rho] = rho2
                 param_values[k] = k2
-                x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
+                vals = [param_values[sym] for sym in vars_needed]
+                #x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
+                x_neg_diag[p] = coef_funcs['x_neg'](*vals)
                 param_values[rho] = rho1
                 param_values[k] = k1
             else:
-                x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
+                x_neg_diag[p] = coef_funcs['x_neg'](*vals)
+                #x_neg_diag[p] = float(coef_expressions['x_neg'].evalf(subs=param_values))
         else: # frontera izquierda
             x_neg_diag[p] = 0
 
@@ -133,21 +146,26 @@ for j in range(Ny-2): # Queda pendiente las condiciones de frontera
             if i < Nx_in/2 and i+1 >= Nx_in/2: # Si se esta en la frontera de materiales xpos se evalua en el otro material
                 param_values[rho] = rho1
                 param_values[k] = k1
-                x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+                vals = [param_values[sym] for sym in vars_needed]
+                #x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+                x_pos_diag[p] = coef_funcs['x_pos'](*vals)
                 param_values[rho] = rho2
                 param_values[k] = k2
             else:
-                x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
+                x_pos_diag[p] = coef_funcs['x_pos'](*vals)
+                #x_pos_diag[p] = float(coef_expressions['x_pos'].evalf(subs=param_values))
         else:
             x_pos_diag[p] = 0  # frontera derecha
 
         if j > 0:
-            y_neg_diag[p] = float(coef_expressions['y_neg'].evalf(subs=param_values))
+            y_neg_diag[p] = coef_funcs['y_neg'](*vals)
+           # y_neg_diag[p] = float(coef_expressions['y_neg'].evalf(subs=param_values))
         else:
             y_neg_diag[p] = 0  # frontera inferior
 
         if j < Ny_in - 1:
-            y_pos_diag[p] = float(coef_expressions['y_pos'].evalf(subs=param_values))
+            y_pos_diag[p] = coef_funcs['y_pos'](*vals)
+           # y_pos_diag[p] = float(coef_expressions['y_pos'].evalf(subs=param_values))
         else:
             y_pos_diag[p] = 0  # frontera superior
 
@@ -184,7 +202,7 @@ diagonals = [main_diag, x_neg_diag[1:], x_pos_diag, y_neg_diag[(Nx_in):], y_pos_
 # Creamos la matriz dispersa
 A = sp.sparse.diags(diagonals, offsets, shape=(N_in, N_in), format='csr')
 A_dense = A.toarray()
-np.set_printoptions(precision=2, linewidth=200, suppress=True)
+np.set_printoptions(precision=2, linewidth=150, suppress=True)
 print(A_dense)
 
 def construir_vector_b(Tvec_n, Nx, Ny, param_values): # Queda pendiente condiciones de neumann
