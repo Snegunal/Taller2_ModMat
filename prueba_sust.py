@@ -6,9 +6,10 @@ import numpy as np
 start_time = time.time()
 
 rho = sy.symbols('rho')
+k = sy.symbols('k')
 temps = sy.symbols('A,B,C')
 A,B,C = temps
-f = rho*A*C/B + B*C/A+2*A**4*2 + rho
+f = rho*A*C/B + B*C/A+2*A**4*2 +rho*(A+ rho)/k**2
 def neuman(NodoFront,NodoInverso):
     sust = NodoInverso**2
     fmod = f.subs(NodoFront,sust)
