@@ -1,0 +1,1 @@
+ffmpeg -framerate 10 -start_number 0 -i frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p video_21.mp4
