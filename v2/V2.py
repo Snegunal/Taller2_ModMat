@@ -13,8 +13,8 @@ epsilon1 = 0.75 # Emisividad
 # Material izquierdo 'aluminio' (2)
 rho2 = 2600 # [kg/m3]
 Cp2 = 903 # [J/(kg K)]
-k2 = 210 # [W/(m K)] 
-epsilon2 = 0.05 # Emisividad
+k2 = 50 # [W/(m K)] 
+epsilon2 = 0.75 # Emisividad
 
 delta = 0.02 # [m]
 hc = 10 # [w/(m2 K)]
@@ -60,37 +60,43 @@ X,Y = np.meshgrid(x,y)
 Hx = delta * dt /(dx**2)
 Hy = delta * dt /(dy**2)
 
-def A(i,Nx_in): # Coeficiente que acompaña a Tn1_ij
-    if i < Nx_in/2:
-        A = (rho2 * Cp2 * delta + k2 * Hx + k2 * Hy + hc * dt )
+def kx(i, Nx_in, k1, k2, ancho_transicion=4):
+    # Transición lineal de k1 a k2 entre (Nx_in/2 - a) y (Nx_in/2 + a)
+    i0 = Nx_in // 2
+    a = ancho_transicion // 2
+    if i < i0 - a:
+        return k1
+    elif i > i0 + a:
+        return k2
     else:
-        A = (rho1 * Cp1 * delta + k1 * Hx + k1 * Hy + hc * dt)
-    return A
+        # interpolación lineal
+        return k1 + (k2 - k1) * (i - (i0 - a)) / (2 * a)
 
-def B(i,Nx_in): # Coeficiente que acompaña a Tn1_i_1j
-    if i < Nx_in/2:
-        B = (-k2*Hx/2)
-    elif i == Nx_in/2-1:
-        B = (-2*k1*k2*Hx/(2*(k1+k2)))
-    else:
-        B = (-k1*Hx/2)
-    return B
 
-def C(i,Nx_in): # Coeficiente que acompaña a Tn1_i1j
-    if i < Nx_in/2:
-        C = (-k2*Hx/2)
-    elif i == Nx_in/2:
-        C = (-2*k1*k2*Hx/(2*(k1+k2)))    
-    else:
-        C = (-k1*Hx/2)
-    return C
+def A(i,Nx_in):
+    k = kx(i, Nx_in, k1, k2)
+    rho = rho1 if i >= Nx_in/2 else rho2
+    cp = Cp1 if i >= Nx_in/2 else Cp2
+    return rho * cp * delta + k * Hx + k * Hy + hc * dt
 
-def D(i,Nx_in): # Coeficiente que acompaña a Tn1_i1j
-    if i < Nx_in/2:
-        D = (-k2*Hy/2)
-    else:
-        D = (-k1*Hy/2)
-    return D
+def B(i,Nx_in):
+    k = kx(i, Nx_in, k1, k2)
+    return -k * Hx / 2
+
+def C(i,Nx_in):
+    k = kx(i, Nx_in, k1, k2)
+    return -k * Hx / 2
+
+def D(i,Nx_in):
+    k = kx(i, Nx_in, k1, k2)
+    return -k * Hy / 2
+
+def An(i,Nx_in):
+    k = kx(i, Nx_in, k1, k2)
+    rho = rho1 if i >= Nx_in/2 else rho2
+    cp = Cp1 if i >= Nx_in/2 else Cp2
+    return rho * cp * delta - k * Hx - k * Hy - hc * dt
+
 
 def E(j,i,Nx_in):
     if i < Nx_in/2:
@@ -101,12 +107,6 @@ def E(j,i,Nx_in):
             - dt*2*epsilon2*Boltsman*TPre[j,i]**4
     return E
 
-def An(i,Nx_in): # Coeficiente que acompaña a Tn1_ij
-    if i < Nx_in/2:
-        An = (rho2 * Cp2 * delta - k2 * Hx - k2 * Hy - hc * dt )
-    else:
-        An = (rho1 * Cp1 * delta - k1 * Hx - k1 * Hy - hc * dt)
-    return An
 
 # Paso 07: llenar la matriz TPre con las condiciones iniciales
 for j in range(0,NodosY):
