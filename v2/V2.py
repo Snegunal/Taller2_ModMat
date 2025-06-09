@@ -5,19 +5,19 @@ import os
 # Constantes
 
 # Material derecho 'acero' (1)
-rho1 = 7850 # [kg/m3]
-Cp1 = 502 # [J/(kg K)]
-k1 = 210 # [W/(m K)] 
+rho2 = 7850 # [kg/m3]
+Cp2 = 502 # [J/(kg K)]
+k2 = 50 # [W/(m K)] 
 epsilon1 = 0.75 # Emisividad
 
 # Material izquierdo 'aluminio' (2)
-rho2 = 2600 # [kg/m3]
-Cp2 = 903 # [J/(kg K)]
-k2 = 50 # [W/(m K)] 
+rho1 = 2600 # [kg/m3]
+Cp1 = 903 # [J/(kg K)]
+k1 = 237 # [W/(m K)] 
 epsilon2 = 0.75 # Emisividad
 
 delta = 0.02 # [m]
-hc = 10 # [w/(m2 K)]
+hc = 25 # [w/(m2 K)]
 Tamb = 298.15 # [K]
 Boltsman =  5.67e-8 # [W/(m2 K4)]
 dt = 0.5
@@ -27,18 +27,18 @@ dirichlet = 350 # [K]
 L = 0.2
 H = 0.2
 
-# Paso 02: definir número de nodos en el eje x
+# Definir número de nodos en el eje x
 x0 = 0.0; dx = 0.005
 x = np.arange(x0, L, dx)
 NodosX = len(x)
 
-# Paso 03: definir número de nodos en el eje y
+# Definir número de nodos en el eje y
 y0 = 0.0; dy = 0.005
 y = np.arange(y0, H, dy)
 NodosY = len(y)
 
-# Paso 04: definir el número de pasos temporales
-t0 = 0.0; tf = 50
+# Definir el número de pasos temporales
+t0 = 0.0; tf = 500
 t = np.arange(t0, tf + dt, dt)
 NodosT =  len(t)
 
@@ -47,11 +47,13 @@ output_folder = "frames"
 os.makedirs(output_folder, exist_ok=True)
 
 # Guardar 100 imágenes aproximadamente
-step_interval = NodosT // 100  # por ejemplo, nt=1000 → interval=10
+step_interval = NodosT // 100 
 
-# Paso 05: crear matrices donde almacenar la temperatura actual, y la del futuro
+# Matrices de temperaturas presente y futuro
 TPre =  np.zeros((NodosY,NodosX))
 TFut =  np.zeros((NodosY,NodosX))
+T_all = np.zeros((NodosT, NodosY, NodosX))  # Almacena T(x,y,t)
+T_all[0,:,:] = TPre.copy()
 
 # Paso 06: crear matrices donde almacenar la posición nodal. Servirá para graficar
 X,Y = np.meshgrid(x,y)
@@ -60,39 +62,38 @@ X,Y = np.meshgrid(x,y)
 Hx = delta * dt /(dx**2)
 Hy = delta * dt /(dy**2)
 
-def kx(i, Nx_in, k1, k2, ancho_transicion=4):
-    # Transición lineal de k1 a k2 entre (Nx_in/2 - a) y (Nx_in/2 + a)
-    i0 = Nx_in // 2
-    a = ancho_transicion // 2
-    if i < i0 - a:
-        return k1
-    elif i > i0 + a:
-        return k2
-    else:
-        # interpolación lineal
-        return k1 + (k2 - k1) * (i - (i0 - a)) / (2 * a)
+# Función sigmoide y su derivada
+def kx(x,Nx_in, k1, k2, a = 100):
+    return k2 + (k1 - k2) / (1 + np.exp(-a*(x - Nx_in/2)))
+
+def dkdx_func(x,Nx_in, k1, k2, a=100):
+    exp_term = np.exp(-a*(x - Nx_in/2))
+    return (k1 - k2) * a * exp_term / (1 + exp_term)**2
+
 
 
 def A(i,Nx_in):
-    k = kx(i, Nx_in, k1, k2)
+    k = kx(i*dx, L, k1, k2)
     rho = rho1 if i >= Nx_in/2 else rho2
     cp = Cp1 if i >= Nx_in/2 else Cp2
     return rho * cp * delta + k * Hx + k * Hy + hc * dt
 
 def B(i,Nx_in):
-    k = kx(i, Nx_in, k1, k2)
-    return -k * Hx / 2
+    k = kx(i*dx, L, k1, k2)
+    dk = dkdx_func(i*dx, L, k1, k2)
+    return -k * Hx / 2 - delta*dk*dt/(4*dx)
 
 def C(i,Nx_in):
-    k = kx(i, Nx_in, k1, k2)
-    return -k * Hx / 2
+    k = kx(i*dx, L, k1, k2)
+    dk = dkdx_func(i*dx, L, k1, k2)
+    return -k * Hx / 2 + delta*dk*dt/(4*dx)
 
 def D(i,Nx_in):
-    k = kx(i, Nx_in, k1, k2)
+    k = kx(i*dx, L, k1, k2)
     return -k * Hy / 2
 
 def An(i,Nx_in):
-    k = kx(i, Nx_in, k1, k2)
+    k = kx(i*dx, L, k1, k2)
     rho = rho1 if i >= Nx_in/2 else rho2
     cp = Cp1 if i >= Nx_in/2 else Cp2
     return rho * cp * delta - k * Hx - k * Hy - hc * dt
@@ -108,7 +109,7 @@ def E(j,i,Nx_in):
     return E
 
 
-# Paso 07: llenar la matriz TPre con las condiciones iniciales
+# se llena la matriz TPre con las condiciones iniciales
 for j in range(0,NodosY):
     for i in range(0,NodosX):
             TPre[j,i] = Tamb
@@ -118,10 +119,9 @@ incog = NodosY*NodosX
 A_mat = np.zeros((incog,incog))
 b_vec = np.zeros(incog)
 
-# Paso 09: llenar la matriz A con los
+# ------- Matriz A -------------
 m = lambda j,i: j*NodosX + i
 
-# Llenamos para todas las filas internas (las que es están entre la primera y la última)
 for j in range(0, NodosY):
     for i in range(0,NodosX):
         p = m(j,i)
@@ -186,9 +186,9 @@ for j in range(0, NodosY):
             A_mat[p,m(j-1,i)] = D(i,NodosX)
             A_mat[p,p] = A(i,NodosX)
 
-# Paso 10: resolver en el tiempo. A medida que se avanzan en el tiempo, se debe actualizar el vector b
-Tc = 350
-Tf = 250
+# resolver en el tiempo. A medida que se avanzan en el tiempo, se debe actualizar el vector b
+Tc = 480
+Tf = 280
 levels = np.arange(Tf,Tc+3,3)
 
 for n in range(1,NodosT):
@@ -220,7 +220,7 @@ for n in range(1,NodosT):
                 
             if i >= NodosX/2 and i != NodosX-1 and j == NodosY-1: # Nodos superior derecha
                 b_vec[p] = An(i,NodosX)*TPre[j,i] \
-                            + (-C(i-1,NodosX) - B(i-1,NodosX))*TPre[j,i-1] - 2*D(i,NodosX)*TPre[j-1,i]\
+                            + -C(i+1,NodosX)*TPre[j,i+1] - B(i-1,NodosX)*TPre[j,i-1] - 2*D(i,NodosX)*TPre[j-1,i]\
                             + E(j,i,NodosX) 
 
             if i < NodosX/2 and j == NodosY-1 and i != 0: # Nodos superior Izquierda
@@ -245,7 +245,7 @@ for n in range(1,NodosT):
                             - 2*D(i,NodosX)*TPre[j-1,i] + E(j,i,NodosX) -4*C(i,NodosX)*flux*dx
             if i == 0 and j == NodosY-1: # Esquina superior Izquierda
                 b_vec[p] = An(i,NodosX)*TPre[j,i] + (-B(i+1,NodosX) \
-                            - C(i+1,NodosX))*TPre[j,i+1] - D(i,NodosX)*TPre[j-1,i]\
+                            - C(i+1,NodosX))*TPre[j,i+1] - D(i,NodosX)*TPre[j-1,i] \
                             + E(j,i,NodosX) -2*D(i,NodosX)*dirichlet
     # Resolver
     c = np.linalg.solve(A_mat,b_vec)
@@ -253,8 +253,13 @@ for n in range(1,NodosT):
     # Extraer información
     for j in range(0,NodosY):
         for i in range(0,NodosX):
-            TFut[j,i] = c[m(j,i)]
+            TFut[j,i] = c[m(j,i)]   
     TPre = TFut.copy()
+
+    # Guardar el campo de temperatura en T_all
+    T_all[n-1,:,:] = TFut.copy()
+
+    np.savez_compressed("campo_temperatura.npz", T_all=T_all, x=x, y=y, t=t)
 
     
     if n % step_interval == 0:
@@ -262,12 +267,12 @@ for n in range(1,NodosT):
         scalarField = ax.contourf(X, Y, TFut, levels=levels, cmap="magma")
         plt.colorbar(scalarField, ax=ax)
         ax.set_title(f"Tiempo {n*dt:.2f} s")
-        filename = os.path.join(output_folder, f"frame_{n//1:04d}.png")
+        filename = os.path.join(output_folder, f"frame_{n//20:04d}.png")
         plt.savefig(filename)
         plt.close()
-
-# Paso 11: hacemos unas buenas obras de arte
-
+    
+    
+# Se gráfica
 
 fig, ax = plt.subplots(1,1,figsize = (8,5))
 scalarField = ax.contourf(X,Y,TFut, levels = levels, cmap = "magma")
