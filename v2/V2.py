@@ -13,27 +13,26 @@ epsilon1 = 0.75 # Emisividad
 # Material izquierdo 'aluminio' (2)
 rho1 = 2600 # [kg/m3]
 Cp1 = 903 # [J/(kg K)]
-k1 = 237 # [W/(m K)] 
+k1 = 220 # [W/(m K)] 
 epsilon2 = 0.75 # Emisividad
 
 delta = 0.02 # [m]
-hc = 25 # [w/(m2 K)]
+hc = 10 # [w/(m2 K)]
 Tamb = 298.15 # [K]
 Boltsman =  5.67e-8 # [W/(m2 K4)]
 dt = 0.5
-flux = 500 # [K/(m)]
+flux = 100 # [K/(m)]
 dirichlet = 350 # [K]
 
-L = 0.2
-H = 0.2
-
+L = 1
+H = 1
 # Definir número de nodos en el eje x
-x0 = 0.0; dx = 0.005
+x0 = 0.0; dx = 0.01
 x = np.arange(x0, L, dx)
 NodosX = len(x)
 
 # Definir número de nodos en el eje y
-y0 = 0.0; dy = 0.005
+y0 = 0.0; dy = 0.05
 y = np.arange(y0, H, dy)
 NodosY = len(y)
 
@@ -63,10 +62,10 @@ Hx = delta * dt /(dx**2)
 Hy = delta * dt /(dy**2)
 
 # Función sigmoide y su derivada
-def kx(x,Nx_in, k1, k2, a = 100):
+def kx(x,Nx_in, k1, k2, a = 70):
     return k2 + (k1 - k2) / (1 + np.exp(-a*(x - Nx_in/2)))
 
-def dkdx_func(x,Nx_in, k1, k2, a=100):
+def dkdx_func(x,Nx_in, k1, k2, a=70):
     exp_term = np.exp(-a*(x - Nx_in/2))
     return (k1 - k2) * a * exp_term / (1 + exp_term)**2
 
@@ -101,10 +100,10 @@ def An(i,Nx_in):
 
 def E(j,i,Nx_in):
     if i < Nx_in/2:
-        E = dt*hc*Tamb + dt*2*epsilon1*Boltsman*Tamb**4 \
+        E = 2*dt*hc*Tamb + dt*2*epsilon1*Boltsman*Tamb**4 \
             - dt*2*epsilon1*Boltsman*TPre[j,i]**4
     else:
-         E = dt*hc*Tamb + dt*2*epsilon2*Boltsman*Tamb**4 \
+         E = 2*dt*hc*Tamb + dt*2*epsilon2*Boltsman*Tamb**4 \
             - dt*2*epsilon2*Boltsman*TPre[j,i]**4
     return E
 
@@ -187,7 +186,7 @@ for j in range(0, NodosY):
             A_mat[p,p] = A(i,NodosX)
 
 # resolver en el tiempo. A medida que se avanzan en el tiempo, se debe actualizar el vector b
-Tc = 480
+Tc = 350
 Tf = 280
 levels = np.arange(Tf,Tc+3,3)
 
@@ -257,9 +256,9 @@ for n in range(1,NodosT):
     TPre = TFut.copy()
 
     # Guardar el campo de temperatura en T_all
-    T_all[n-1,:,:] = TFut.copy()
+    #T_all[n-1,:,:] = TFut.copy()
 
-    np.savez_compressed("campo_temperatura.npz", T_all=T_all, x=x, y=y, t=t)
+    #np.savez_compressed("campo_temperatura1.npz", T_all=T_all, x=x, y=y, t=t)
 
     
     if n % step_interval == 0:

@@ -9,7 +9,6 @@ t = data["t"]
 
 print(np.shape(T_all))
 Tempx = np.zeros(len(t)-2)
-
 for i in range(1,1000):
     Tempx[i-1] = T_all[i,39,10]
 plt.plot(Tempx)
