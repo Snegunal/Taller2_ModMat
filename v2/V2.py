@@ -2,26 +2,44 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# Constantes
 
-# Material derecho 'acero' (1)
-rho2 = 7850 # [kg/m3]
-Cp2 = 502 # [J/(kg K)]
-k2 = 50 # [W/(m K)] 
-epsilon1 = 0.75 # Emisividad
+# ------- Combinacion aluminio acero --------
 
 # Material izquierdo 'aluminio' (2)
-rho1 = 2600 # [kg/m3]
-Cp1 = 903 # [J/(kg K)]
-k1 = 220 # [W/(m K)] 
+rho2 = 2710 # [kg/m3]
+Cp2 = 904 # [J/(kg K)]
+k2 = 222 # [W/(m K)] 
+epsilon1 = 0.75 # Emisividad
+
+# Material derecho 'acero' (1)
+rho1 = 7850 # [kg/m3]
+Cp1 = 497 # [J/(kg K)]
+k1 = 15.3 # [W/(m K)] 
 epsilon2 = 0.75 # Emisividad
 
+#-------- Combinacion laton cobre ---------
+
+# Material izquierdo 'laton' (2)
+rho2 = 8510 # [kg/m3]
+Cp2 = 379 # [J/(kg K)]
+k2 = 85.1 # [W/(m K)] 
+epsilon1 = 0.75 # Emisividad
+
+# Material derecho 'cobre' (1)
+rho1 = 8930 # [kg/m3]
+Cp1 = 385 # [J/(kg K)]
+k1 = 398 # [W/(m K)] 
+epsilon2 = 0.75 # Emisividad
+
+
+# -------- Parametros generales ---------
+
 delta = 0.02 # [m]
-hc = 10 # [w/(m2 K)]
+hc =200 # [w/(m2 K)]
 Tamb = 298.15 # [K]
 Boltsman =  5.67e-8 # [W/(m2 K4)]
-dt = 0.5
-flux = 100 # [K/(m)]
+dt = 1
+flux = 500 # [W/m2]]
 dirichlet = 350 # [K]
 
 L = 1
@@ -37,7 +55,7 @@ y = np.arange(y0, H, dy)
 NodosY = len(y)
 
 # Definir el número de pasos temporales
-t0 = 0.0; tf = 500
+t0 = 0.0; tf = 1000
 t = np.arange(t0, tf + dt, dt)
 NodosT =  len(t)
 
@@ -46,7 +64,7 @@ output_folder = "frames"
 os.makedirs(output_folder, exist_ok=True)
 
 # Guardar 100 imágenes aproximadamente
-step_interval = NodosT // 100 
+step_interval = NodosT // 200 
 
 # Matrices de temperaturas presente y futuro
 TPre =  np.zeros((NodosY,NodosX))
@@ -62,10 +80,10 @@ Hx = delta * dt /(dx**2)
 Hy = delta * dt /(dy**2)
 
 # Función sigmoide y su derivada
-def kx(x,Nx_in, k1, k2, a = 70):
+def kx(x,Nx_in, k1, k2, a = 50):
     return k2 + (k1 - k2) / (1 + np.exp(-a*(x - Nx_in/2)))
 
-def dkdx_func(x,Nx_in, k1, k2, a=70):
+def dkdx_func(x,Nx_in, k1, k2, a=50):
     exp_term = np.exp(-a*(x - Nx_in/2))
     return (k1 - k2) * a * exp_term / (1 + exp_term)**2
 
@@ -186,7 +204,7 @@ for j in range(0, NodosY):
             A_mat[p,p] = A(i,NodosX)
 
 # resolver en el tiempo. A medida que se avanzan en el tiempo, se debe actualizar el vector b
-Tc = 350
+Tc = 470
 Tf = 280
 levels = np.arange(Tf,Tc+3,3)
 
@@ -256,21 +274,18 @@ for n in range(1,NodosT):
     TPre = TFut.copy()
 
     # Guardar el campo de temperatura en T_all
-    #T_all[n-1,:,:] = TFut.copy()
-
-    #np.savez_compressed("campo_temperatura1.npz", T_all=T_all, x=x, y=y, t=t)
-
+    T_all[n-1,:,:] = TFut.copy()
     
     if n % step_interval == 0:
         fig, ax = plt.subplots()
         scalarField = ax.contourf(X, Y, TFut, levels=levels, cmap="magma")
         plt.colorbar(scalarField, ax=ax)
         ax.set_title(f"Tiempo {n*dt:.2f} s")
-        filename = os.path.join(output_folder, f"frame_{n//20:04d}.png")
+        filename = os.path.join(output_folder, f"frame_{n//5:04d}.png")
         plt.savefig(filename)
         plt.close()
     
-    
+np.savez_compressed("campo_lat_cob_1000s_hc200.npz", T_all=T_all, x=x, y=y, t=t)
 # Se gráfica
 
 fig, ax = plt.subplots(1,1,figsize = (8,5))

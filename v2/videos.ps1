@@ -1,1 +1,1 @@
-ffmpeg -framerate 10 -start_number 0 -i frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p prueba17.mp4
+ffmpeg -framerate 20 -start_number 0 -i frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p lat_cob_1000_200hcs.mp4
